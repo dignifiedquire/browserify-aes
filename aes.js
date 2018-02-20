@@ -3,6 +3,8 @@
 // which is in turn based on the one from crypto-js
 // https://code.google.com/p/crypto-js/
 
+'use strict'
+
 var Buffer = require('safe-buffer').Buffer
 
 function asUInt32Array (buf) {

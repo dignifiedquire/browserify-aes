@@ -1,13 +1,9 @@
+'use strict'
+
 var Buffer = require('safe-buffer').Buffer
 var incr32 = require('../incr32')
 
-function getBlock (out, self) {
-  self._cipher.encryptBlockRaw(out, self._prev)
-  incr32(self._prev)
-}
-
 var blockSize = 16
-var out = new Uint32Array(4)
 
 exports.encrypt = function (self, chunk) {
   var len = chunk.length
@@ -20,8 +16,11 @@ exports.encrypt = function (self, chunk) {
   ])
 
   var offset, i
+  var out = new Uint32Array(4)
   for (i = 0; i < chunkNum; i++) {
-    getBlock(out, self)
+    self._cipher.encryptBlockRaw(out, self._prev)
+    incr32(self._prev)
+
     offset = start + i * blockSize
     self._cache.writeUInt32BE(out[0], offset + 0)
     self._cache.writeUInt32BE(out[1], offset + 4)
@@ -30,7 +29,7 @@ exports.encrypt = function (self, chunk) {
   }
 
   // xor
-  for (i = 0; i < len; ++i) {
+  for (i = 0; i < len; i++) {
     self._cache[i] = chunk[i] ^ self._cache[i]
   }
 
