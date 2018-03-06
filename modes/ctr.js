@@ -9,33 +9,45 @@ exports.encrypt = function (self, chunk) {
   var len = chunk.length
   var chunkNum = Math.ceil(len / blockSize)
   var start = self._cache.length
+  var out = new Uint32Array(chunkNum * 4)
+  var ivLen = 0
+  var iv = self._prev
 
-  self._cache = Buffer.concat([
-    self._cache,
-    Buffer.allocUnsafe(chunkNum * blockSize)
-  ])
+  for (var i = 0; i < chunkNum; i++) {
+    self._cipher.encryptBlockRaw(out.subarray(i * 4, (i+1) * 4), self._prev)
 
-  var offset, i
-  var out = new Uint32Array(4)
-  for (i = 0; i < chunkNum; i++) {
-    self._cipher.encryptBlockRaw(out, self._prev)
-    incr32(self._prev)
-
-    offset = start + i * blockSize
-    self._cache.writeUInt32BE(out[0], offset + 0)
-    self._cache.writeUInt32BE(out[1], offset + 4)
-    self._cache.writeUInt32BE(out[2], offset + 8)
-    self._cache.writeUInt32BE(out[3], offset + 12)
+    // incr32 inlined
+    ivLen = iv.length
+    while (ivLen--) {
+      if (iv[ivLen] === 255) {
+        iv[ivLen] = 0
+      } else {
+        iv[ivLen]++
+        break
+      }
+    }
   }
 
-  // xor
-  for (i = 0; i < len; i++) {
-    self._cache[i] = chunk[i] ^ self._cache[i]
-  }
+  self._cache = Buffer.concat([ self._cache, toBuffer(out) ])
+  xor(self._cache, chunk)
 
   var result = self._cache.slice(0, len)
   // update cache
   self._cache = self._cache.slice(len)
 
   return result
+}
+
+function xor(a, b) {
+  for (var i = 0; i < a.length; i++) {
+    a[i] = a[i] ^ b[i]
+  }
+}
+
+function toBuffer(tarray)  {
+  var out = Buffer.allocUnsafe(tarray.length*4)
+  for (var i = 0; i < tarray.length; i++) {
+    out.writeUInt32BE(tarray[i], i * 4)
+  }
+  return out
 }

@@ -18,72 +18,55 @@ function asUInt32Array (buf) {
   return out
 }
 
+// keeping these here to avoid reallocations
+var s32 = new Uint32Array(4)
+var s = new Uint8Array(s32.buffer)
+
 function cryptBlock (M, keySchedule, SUB_MIX0, SUB_MIX1, SUB_MIX2, SUB_MIX3, SBOX, nRounds, t) {
-  var s0 = M[0] ^ keySchedule[0]
-  var s1 = M[1] ^ keySchedule[1]
-  var s2 = M[2] ^ keySchedule[2]
-  var s3 = M[3] ^ keySchedule[3]
-  var t0, t1, t2, t3 = 0
-  var ksRow = 4
+  s32[0] = M[0] ^ keySchedule[0],
+  s32[1] = M[1] ^ keySchedule[1],
+  s32[2] = M[2] ^ keySchedule[2],
+  s32[3] = M[3] ^ keySchedule[3]
+
+  var t0, t1, t2, t3
   var round = 1
 
   for (; round < nRounds; round++) {
-    t0 = SUB_MIX0[s0 >>> 24] ^
-      SUB_MIX1[(s1 >>> 16) & 0xff] ^
-      SUB_MIX2[(s2 >>> 8) & 0xff] ^
-      SUB_MIX3[s3 & 0xff] ^
-      keySchedule[ksRow]
-    t1 = SUB_MIX0[s1 >>> 24] ^
-      SUB_MIX1[(s2 >>> 16) & 0xff] ^
-      SUB_MIX2[(s3 >>> 8) & 0xff] ^
-      SUB_MIX3[s0 & 0xff] ^
-      keySchedule[ksRow+1]
-    t2 = SUB_MIX0[s2 >>> 24] ^
-      SUB_MIX1[(s3 >>> 16) & 0xff] ^
-      SUB_MIX2[(s0 >>> 8) & 0xff] ^
-      SUB_MIX3[s1 & 0xff] ^
-      keySchedule[ksRow+2]
-    t3 = SUB_MIX0[s3 >>> 24] ^
-      SUB_MIX1[(s0 >>> 16) & 0xff] ^
-      SUB_MIX2[(s1 >>> 8) & 0xff] ^
-      SUB_MIX3[s2 & 0xff] ^
-      keySchedule[ksRow+3]
-    s0 = t0
-    s1 = t1
-    s2 = t2
-    s3 = t3
-    ksRow += 4
+    t0 = SUB_MIX0[s[3]]  ^ SUB_MIX1[s[6]]  ^ SUB_MIX2[s[9]]  ^ SUB_MIX3[s[12]] ^ keySchedule[round * 4]
+    t1 = SUB_MIX0[s[7]]  ^ SUB_MIX1[s[10]] ^ SUB_MIX2[s[13]] ^ SUB_MIX3[s[0]]  ^ keySchedule[round * 4 + 1]
+    t2 = SUB_MIX0[s[11]] ^ SUB_MIX1[s[14]] ^ SUB_MIX2[s[1]]  ^ SUB_MIX3[s[4]]  ^ keySchedule[round * 4 + 2]
+    t3 = SUB_MIX0[s[15]] ^ SUB_MIX1[s[2]]  ^ SUB_MIX2[s[5]]  ^ SUB_MIX3[s[8]]  ^ keySchedule[round * 4 + 3]
+    s32[0] = t0
+    s32[1] = t1
+    s32[2] = t2
+    s32[3] = t3
   }
 
-  t0 = ((SBOX[s0 >>> 24] << 24) |
-        (SBOX[(s1 >>> 16) & 0xff] << 16) |
-        (SBOX[(s2 >>> 8) & 0xff] << 8) |
-        SBOX[s3 & 0xff]) ^
-    keySchedule[ksRow++]
-  t1 = ((SBOX[s1 >>> 24] << 24) |
-        (SBOX[(s2 >>> 16) & 0xff] << 16) |
-        (SBOX[(s3 >>> 8) & 0xff] << 8) |
-        SBOX[s0 & 0xff]) ^
-    keySchedule[ksRow++]
-  t2 = ((SBOX[s2 >>> 24] << 24) |
-        (SBOX[(s3 >>> 16) & 0xff] << 16) |
-        (SBOX[(s0 >>> 8) & 0xff] << 8) |
-        SBOX[s1 & 0xff]) ^
-    keySchedule[ksRow++]
-  t3 = ((SBOX[s3 >>> 24] << 24) |
-        (SBOX[(s0 >>> 16) & 0xff] << 16) |
-        (SBOX[(s1 >>> 8) & 0xff] << 8) |
-        SBOX[s2 & 0xff]) ^
-    keySchedule[ksRow++]
-
-  t[0] = t0
-  t[1] = t1
-  t[2] = t2
-  t[3] = t3
+  t[0] = ((SBOX[s[3]] << 24) |
+          (SBOX[s[6]] << 16) |
+          (SBOX[s[9]] << 8) |
+          SBOX[s[12] ]) ^
+    keySchedule[nRounds * 4]
+  t[1] = ((SBOX[s[7]] << 24) |
+          (SBOX[s[10]] << 16) |
+          (SBOX[s[13]] << 8) |
+          SBOX[s[0]]) ^
+    keySchedule[nRounds *4 + 1]
+  t[2] = ((SBOX[s[11]] << 24) |
+          (SBOX[s[14]] << 16) |
+          (SBOX[s[1]] << 8) |
+          SBOX[s[4]]) ^
+    keySchedule[nRounds * 4 + 2]
+  t[3] = ((SBOX[s[15]] << 24) |
+          (SBOX[s[2]] << 16) |
+          (SBOX[s[5]] << 8) |
+          SBOX[s[8]]) ^
+    keySchedule[nRounds * 4 + 3]
 }
 
 // AES constants
 var RCON = new Uint32Array([0x00, 0x01, 0x02, 0x04, 0x08, 0x10, 0x20, 0x40, 0x80, 0x1b, 0x36])
+
 var G = (function () {
   // Compute double table
   var d = new Uint32Array(256)
@@ -95,8 +78,8 @@ var G = (function () {
     }
   }
 
-  var SBOX = new Uint32Array(256)
-  var INV_SBOX = new Uint32Array(256)
+  var SBOX = new Uint8Array(256)
+  var INV_SBOX = new Uint8Array(256)
   var SUB_MIX = [new Uint32Array(256), new Uint32Array(256), new Uint32Array(256), new Uint32Array(256)]
   var INV_SUB_MIX = [new Uint32Array(256), new Uint32Array(256), new Uint32Array(256), new Uint32Array(256)]
 

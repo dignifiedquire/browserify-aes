@@ -1,15 +1,15 @@
+'use strict'
+
 function incr32 (iv) {
   var len = iv.length
-  var item
   while (len--) {
-    item = iv.readUInt8(len)
-    if (item === 255) {
-      iv.writeUInt8(0, len)
+    if (iv[len] === 255) {
+      iv[len] = 0
     } else {
-      item++
-      iv.writeUInt8(item, len)
+      iv[len]++
       break
     }
   }
 }
+
 module.exports = incr32
